@@ -12,7 +12,7 @@ SPIClass SPI_3(PC12, PC11, PC10);
 AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 
 BLDCMotor motor = BLDCMotor(2);
-BLDCDriver3PWM driver = BLDCDriver3PWM(PA9, PA8, PA10);
+BLDCDriver3PWM driver = BLDCDriver3PWM(PA8, PA9, PA10);
 // Hall sensor instance
 // HallSensor(int hallA, int hallB , int cpr, int index)
 //  - hallA, hallB, hallC    - HallSensor A, B and C pins
