@@ -1,4 +1,4 @@
-/*Мотор вращается 2 сек в одну сторону, 2 сек в другую
+/*Мотор вращается в одну сторону
 57HS100-4204A-E1000  I=4.2A Angular step 1.8° Phase number: 2
 encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 */ 
