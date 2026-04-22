@@ -154,7 +154,7 @@ void sendData(unsigned long address, unsigned long datagram) {
 
 void setup(){
   Serial.begin(115200);
-  pinMode(LED2, OUTPUT);
+  pinMode(PD2, OUTPUT);
 
   pinMode(Enc_B, INPUT);
   pinMode(Enc_A, INPUT);
@@ -177,7 +177,7 @@ void can_send_recv(){
   if (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan1) != 0){
       
       if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &TxHeader, can_data_send) != HAL_OK){ Error_Handler(); } 
-      else{digitalWrite(LED2, !digitalRead(LED2));} //помигаем светодиодом, если все ок
+      else{digitalToggle(PD2);} //помигаем светодиодом, если все ок
     }
 
     // /*-------Получение сообщений из can-------*/ 
