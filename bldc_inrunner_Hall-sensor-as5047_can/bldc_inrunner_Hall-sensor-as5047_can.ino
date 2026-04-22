@@ -25,7 +25,7 @@ void doA(){sensor.handleA();}
 void doB(){sensor.handleB();}
 void doC(){sensor.handleC();}
 
-float target_voltage = 1;
+float target_voltage = 2;
 
 uint8_t data[4] = { 170, 171, 172, 173}; //AA AB AC AD
 unsigned long t = 0;
@@ -86,7 +86,7 @@ void setup() {
   driver.voltage_power_supply = 24;
   driver.init();
   motor.linkDriver(&driver);
-  motor.current_limit = 1;
+  motor.current_limit = 6;
   motor.init();
   motor.controller = MotionControlType::torque;
   motor.torque_controller = TorqueControlType::voltage;
