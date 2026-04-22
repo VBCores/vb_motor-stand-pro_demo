@@ -65,11 +65,12 @@ void setup() {
   Serial.println("Pole pairs (PP) estimator");
   Serial.println("-\n");
 
-  float pp_search_voltage = 4; // maximum power_supply_voltage/2
+  float pp_search_voltage = 12; // maximum power_supply_voltage/2
   float pp_search_angle = 6*_PI; // search electrical angle to turn
 
   motor.controller = MotionControlType::angle_openloop;
   motor.voltage_limit=pp_search_voltage;
+  motor.current_limit = 5;
   motor.move(0);
   _delay(1000);
   sensor.update();
@@ -118,6 +119,7 @@ void setup() {
 
   motor.controller = MotionControlType::torque;
   motor.pole_pairs = pp;
+  motor.voltage_limit=24;
   motor.initFOC();
   _delay(1000);
 

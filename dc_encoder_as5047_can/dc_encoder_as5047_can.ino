@@ -25,7 +25,7 @@ AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 int pwm = 500;
 int count = 0;
 float start_angle = 0;
-int rotations = 0;
+int revolutions = 0;
 int ipr = 1734;
 
 void ISR_A(){
@@ -38,11 +38,11 @@ void ISR_A(){
   }
 
   if (count <= -ipr){ 
-    rotations -= 1;
+    revolutions += 1;
     count = 0;
   }
   else if (count >= ipr){
-    rotations += 1;
+    revolutions -= 1;
     count = 0;
   }
   
@@ -168,11 +168,9 @@ void loop() {
 
   /*---- print data ----*/ 
 
+  Serial.print("angle: ");
   Serial.print(as5047p.readAngleDegree());
-  Serial.print(" - angle, rotations: ");
-  Serial.println(rotations);
+  Serial.print(" | revolutions: ");
+  Serial.println(revolutions);
   delay(100); 
-  
 }
-
-  

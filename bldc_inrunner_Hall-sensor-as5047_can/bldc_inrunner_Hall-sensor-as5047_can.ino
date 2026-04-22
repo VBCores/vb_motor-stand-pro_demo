@@ -151,8 +151,6 @@ void loop() {
 }
 
 void serialReceiveUserCommand() {
-
- 
   static String received_chars;
 
   while (Serial.available()) {
