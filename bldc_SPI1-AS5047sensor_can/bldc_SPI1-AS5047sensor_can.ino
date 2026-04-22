@@ -4,7 +4,7 @@
 
 
 BLDCMotor motor = BLDCMotor(1);
-BLDCDriver3PWM driver = BLDCDriver3PWM(PA9, PA8, PA10);
+BLDCDriver3PWM driver = BLDCDriver3PWM(PA8, PA9, PA10);
 
 SPIClass SPI_1(PA7, PA6, PA5); //NSS PA4
 MagneticSensorSPI sensor = MagneticSensorSPI(PA4, 14, 0x3FFF);
