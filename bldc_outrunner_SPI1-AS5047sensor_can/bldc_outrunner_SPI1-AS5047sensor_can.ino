@@ -57,7 +57,7 @@ void setup() {
  
   sensor.init(&SPI_1);
   motor.linkSensor(&sensor);
-  driver.voltage_power_supply = 24;
+  driver.voltage_power_supply = 50;
   driver.init();
   motor.linkDriver(&driver);
   motor.init();
@@ -80,7 +80,7 @@ void setup() {
   float motor_angle = 0;
   while(motor_angle <= pp_search_angle){
     motor_angle += 0.01f;
-    sensor.update(); // keep track of the overflow
+    sensor.update();
     motor.move(motor_angle);
     _delay(1);
   }
@@ -116,10 +116,15 @@ void setup() {
     Serial.println(F(" - You can also try to adjust the target voltage using serial terminal!"));
   }
 
-
+  motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
   motor.controller = MotionControlType::torque;
+  motor.torque_controller = TorqueControlType::voltage;
+
   motor.pole_pairs = pp;
-  motor.voltage_limit=24;
+  motor.voltage_limit=36;
+  motor.current_limit = 2.7;
+  motor.velocity_limit = 564;
+
   motor.initFOC();
   _delay(1000);
 
