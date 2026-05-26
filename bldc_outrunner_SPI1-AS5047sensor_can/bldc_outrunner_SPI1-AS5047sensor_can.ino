@@ -57,7 +57,7 @@ void setup() {
  
   sensor.init(&SPI_1);
   motor.linkSensor(&sensor);
-  driver.voltage_power_supply = 50;
+  driver.voltage_power_supply = 24;
   driver.init();
   motor.linkDriver(&driver);
   motor.init();
@@ -121,7 +121,7 @@ void setup() {
   motor.torque_controller = TorqueControlType::voltage;
 
   motor.pole_pairs = pp;
-  motor.voltage_limit=36;
+  motor.voltage_limit=24;
   motor.current_limit = 2.7;
   motor.velocity_limit = 564;
 
@@ -167,14 +167,17 @@ void can_send_recv(){
 }
 
 void loop() {
-  if (millis() - t >= 100){
-    can_send_recv();
-    t = millis();
-  }
+  sensor.update();
   motor.loopFOC();
   motor.move(target_voltage);
-  serialReceiveUserCommand();
-  delay(1);
+
+  if (millis() - t >= 100){
+    can_send_recv();
+    Serial.println(target_voltage);
+    serialReceiveUserCommand();
+    t = millis();
+  }
+
 }
 
 

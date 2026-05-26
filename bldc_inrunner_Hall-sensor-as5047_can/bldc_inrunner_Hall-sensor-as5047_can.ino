@@ -15,14 +15,44 @@ BLDCDriver3PWM driver = BLDCDriver3PWM(PA8, PA9, PA10);
 // AS5047 по SPI3
 MagneticSensorSPI sensor = MagneticSensorSPI(AS5047P_CHIP_SELECT_PORT, 14, 0x3FFF);
 
+static const float FIXED_ZERO_ELECTRIC_ANGLE = 2.132524f;
+
 float target_voltage = 2;
 
 
 uint8_t data[4] = { 170, 171, 172, 173}; //AA AB AC AD
 unsigned long t = 0;
+unsigned long telemetry_t = 0;
 FDCAN_HandleTypeDef*  hfdcan1;
 CanFD* canfd;
 FDCAN_TxHeaderTypeDef TxHeader;
+
+static float normalizeAngle(float angle){
+  while (angle < 0.0f) {
+    angle += _2PI;
+  }
+  while (angle >= _2PI) {
+    angle -= _2PI;
+  }
+  return angle;
+}
+
+
+
+void runInitFOC(){
+  target_voltage = 0.0f;
+  motor.move(0.0f);
+  delay(200);
+  Serial.println(F("Running SimpleFOC initFOC..."));
+  motor.initFOC();
+  Serial.print(F("SimpleFOC found zero electric angle: "));
+  Serial.println(motor.zero_electric_angle, 6);
+  motor.zero_electric_angle = normalizeAngle(FIXED_ZERO_ELECTRIC_ANGLE);
+  Serial.print(F("Fixed zero electric angle: "));
+  Serial.println(motor.zero_electric_angle, 6);
+  Serial.print(F("Sensor direction: "));
+  Serial.println(motor.sensor_direction == Direction::CW ? F("CW") : F("CCW"));
+}
 
 void can_config(int ID){
   SystemClock_Config();
@@ -65,20 +95,23 @@ void setup() {
   motor.linkSensor(&sensor);
 
   driver.voltage_power_supply = 24;
+  driver.pwm_frequency = 25000;
   driver.init();
 
   motor.linkDriver(&driver);
   motor.current_limit = 8.7;
+  motor.voltage_sensor_align = 2.0;
 
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
   motor.controller = MotionControlType::torque;
   motor.torque_controller = TorqueControlType::voltage;
   motor.voltage_limit = 24;
   motor.init();
-  motor.initFOC();
+  runInitFOC();
 
   Serial.println(F("\n Motor ready."));
-  Serial.println(F("Set the target voltage using serial terminal:"));
+  Serial.println(F("Set target voltage with a number."));
+  Serial.println(F("Commands: Z angle set zero, O delta add zero."));
   _delay(1000);
 }
 
@@ -117,18 +150,15 @@ void can_send_recv(){
 }
 
 void loop() {
+  sensor.update();
+  motor.loopFOC();
+  motor.move(target_voltage);
+
   if (millis() - t >= 100){
     can_send_recv();
-    motor.move(target_voltage);
-    Serial.println(target_voltage);
     serialReceiveUserCommand();
     t = millis();
   }
-
-  sensor.update();
-  motor.loopFOC();
-  
-  
 }
 
 void serialReceiveUserCommand() {
@@ -139,7 +169,19 @@ void serialReceiveUserCommand() {
     received_chars += inChar;
 
     if (inChar == '\n') {
-      target_voltage = received_chars.toFloat();
+      received_chars.trim();
+      char command = toupper(received_chars.charAt(0));
+      if (command == 'Z') {
+        motor.zero_electric_angle = normalizeAngle(received_chars.substring(1).toFloat());
+        Serial.print(F("Zero electric angle set: "));
+        Serial.println(motor.zero_electric_angle, 6);
+      } else if (command == 'O') {
+        motor.zero_electric_angle = normalizeAngle(motor.zero_electric_angle + received_chars.substring(1).toFloat());
+        Serial.print(F("Zero electric angle adjusted: "));
+        Serial.println(motor.zero_electric_angle, 6);
+      } else {
+        target_voltage = received_chars.toFloat();
+      }
       received_chars = "";
     }
   }
