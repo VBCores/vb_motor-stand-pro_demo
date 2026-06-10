@@ -38,7 +38,7 @@ AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 
 int ipr = 2000;
 int count = 0;
-int revolutions = 0;
+int rotations = 0;
 float start_angle = 0;
 
 
@@ -58,11 +58,11 @@ void ISR_A(){
   }
 
   if (count <= -ipr){ 
-    revolutions -= 1;
+    rotations -= 1;
     count = 0;
   }
   else if (count >= ipr){
-    revolutions += 1;
+    rotations += 1;
     count = 0;
   }
   
@@ -145,6 +145,11 @@ void sendData(unsigned long address, unsigned long datagram) {
   i_datagram <<= 8;
   i_datagram |= SPI.transfer((datagram) & 0xff);
   digitalWrite(SPI1_NSS_PIN ,HIGH);
+
+  Serial.print("Received: ");
+  Serial.println(i_datagram, HEX);
+  Serial.print(" from register: ");
+  Serial.println(address,HEX);
 }
 
 void setup(){
@@ -198,7 +203,7 @@ void can_send_recv(){
       }
 }
 
-int target = 200000;
+int target = 51200;
 
 void loop(){
   sendData(0xAD,target);
@@ -212,18 +217,14 @@ void loop(){
     t = millis();
   }
 
-  Serial.print("angle: ");
+  Serial.print("Angle: ");
   Serial.print(as5047p.readAngleDegree());
-<<<<<<< HEAD
   Serial.print(" Counts: ");
   Serial.print(count);
   Serial.print(" Rotation: ");
-=======
-  Serial.print(" | revolutions: ");
->>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
-  Serial.println(revolutions);
+  Serial.println(rotations);
 
-  // target +=51200;
+  target +=51200;
   delay(100);
 
   

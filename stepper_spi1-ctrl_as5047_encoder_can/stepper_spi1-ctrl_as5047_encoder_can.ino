@@ -40,7 +40,7 @@ SPIClass SPI_3(PC12, PC11, PC10);
 
 int ipr = 2000;
 int count = 0;
-int revolutions = 0;
+int rotations = 0;
 float start_angle = 0;
 
 
@@ -60,11 +60,11 @@ void ISR_A(){
   }
 
   if (count <= -ipr){ 
-    revolutions -= 1;
+    rotations -= 1;
     count = 0;
   }
   else if (count >= ipr){
-    revolutions += 1;
+    rotations += 1;
     count = 0;
   }
   
@@ -224,7 +224,7 @@ void loop(){
   Serial.print(" Counts: ");
   Serial.print(count);
   Serial.print(" Rotation: ");
-  Serial.println(revolutions);
+  Serial.println(rotations);
 
   target +=51200;
   delay(100);

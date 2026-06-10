@@ -65,12 +65,11 @@ void setup() {
   Serial.println("Pole pairs (PP) estimator");
   Serial.println("-\n");
 
-  float pp_search_voltage = 12; // maximum power_supply_voltage/2
+  float pp_search_voltage = 4; // maximum power_supply_voltage/2
   float pp_search_angle = 6*_PI; // search electrical angle to turn
 
   motor.controller = MotionControlType::angle_openloop;
   motor.voltage_limit=pp_search_voltage;
-  motor.current_limit = 5;
   motor.move(0);
   _delay(1000);
   sensor.update();
@@ -80,7 +79,7 @@ void setup() {
   float motor_angle = 0;
   while(motor_angle <= pp_search_angle){
     motor_angle += 0.01f;
-    sensor.update();
+    sensor.update(); // keep track of the overflow
     motor.move(motor_angle);
     _delay(1);
   }
@@ -121,11 +120,7 @@ void setup() {
   motor.torque_controller = TorqueControlType::voltage;
 
   motor.pole_pairs = pp;
-<<<<<<< HEAD
   motor.voltage_limit=36;
-=======
-  motor.voltage_limit=24;
->>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
   motor.current_limit = 2.7;
   motor.velocity_limit = 564;
 
@@ -171,17 +166,14 @@ void can_send_recv(){
 }
 
 void loop() {
-  sensor.update();
-  motor.loopFOC();
-  motor.move(target_voltage);
-
   if (millis() - t >= 100){
     can_send_recv();
-    Serial.println(target_voltage);
-    serialReceiveUserCommand();
     t = millis();
   }
-
+  motor.loopFOC();
+  motor.move(target_voltage);
+  serialReceiveUserCommand();
+  delay(1);
 }
 
 

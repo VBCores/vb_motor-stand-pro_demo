@@ -25,32 +25,24 @@ AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 int pwm = 500;
 int count = 0;
 float start_angle = 0;
-int revolutions = 0;
+int rotations = 0;
 int ipr = 1734;
 
 void ISR_A(){
   
   if (digitalRead(Enc_A) == digitalRead(Enc_B)){
-    count -= 1;
+    count += 1;
   }
   else {
-    count += 1;
+    count -= 1;
   }
 
   if (count <= -ipr){ 
-<<<<<<< HEAD
-    revolutions -= 1;
+    rotations -= 1;
     count = 0;
   }
   else if (count >= ipr){
-    revolutions += 1;
-=======
-    revolutions += 1;
-    count = 0;
-  }
-  else if (count >= ipr){
-    revolutions -= 1;
->>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
+    rotations += 1;
     count = 0;
   }
   
@@ -156,17 +148,17 @@ void loop() {
   }
   /* ---------Подсчет ipr---------- */
   // if (pwm!=0 && abs(start_angle - as5047p.readAngleDegree())<0.05){
-  //   ++revolutions;
+  //   ++rotations;
   //   Serial.print(as5047p.readAngleDegree());
   //   Serial.print(" - angle, start_angle: ");
   //   Serial.print(start_angle);
-  //   Serial.print(" revolutions: ");
-  //   Serial.print(revolutions);
+  //   Serial.print(" rotations: ");
+  //   Serial.print(rotations);
   //   Serial.print(" impulse: ");
   //   Serial.println(count);
   // }
   if (Serial.available() > 0) {
-    pwm = Serial.readStringUntil('\n').toInt();    
+    pwm = Serial.readString().toInt();    
   }
 
   if (millis() - t >= 100){
@@ -176,14 +168,11 @@ void loop() {
 
   /*---- print data ----*/ 
 
-  Serial.print("angle: ");
   Serial.print(as5047p.readAngleDegree());
-  Serial.print(" | revolutions: ");
-  Serial.println(revolutions);
-<<<<<<< HEAD
-  delay(10); 
-  
-=======
+  Serial.print(" - angle, rotations: ");
+  Serial.println(rotations);
   delay(100); 
->>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
+  
 }
+
+  
