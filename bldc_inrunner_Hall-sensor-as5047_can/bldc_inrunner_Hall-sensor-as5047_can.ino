@@ -89,8 +89,9 @@ void setup() {
   /* ---------- SimpleFOC config ---------- */
   motor.linkSensor(&sensor);
 
+  driver.pwm_frequency = 20000;
   driver.voltage_power_supply = 24;
-  driver.voltage_limit = 12;
+  driver.voltage_limit = 18;
   driver.init();
 
   motor.linkDriver(&driver);
@@ -98,11 +99,11 @@ void setup() {
   motor.controller = MotionControlType::torque;
   motor.torque_controller = TorqueControlType::voltage;
 
-  motor.voltage_limit = 12;
-  motor.current_limit = 6;
+  motor.voltage_limit = 24;
+  motor.current_limit = 3;
 
   // Для Hall-сенсоров часто лучше, чем SinePWM/SpaceVectorPWM
- motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
+ motor.foc_modulation = FOCModulationType::SinePWM;
   
 
   motor.init();
@@ -145,14 +146,25 @@ void can_send_recv() {
   }
 }
 
+void clearDrvFault() {
+    motor.disable();
+    digitalWrite(PB3, LOW);
+    delayMicroseconds(1);   // 1-1.2 мкс по даташиту
+    digitalWrite(PB3, HIGH);
+    delay(10);              // ждём wake-up (typ 1-2 мс)
+    motor.enable();
+    Serial.println("DRV8328B fault cleared");
+}
+
 void loop() {
   sensor.update();
   motor.loopFOC();
+  motor.move(target_voltage);
 
   serialReceiveUserCommand();
 
   if (millis() - t >= 100) {
-    motor.move(target_voltage);
+    
     can_send_recv();
     t = millis();
   }
@@ -172,6 +184,10 @@ void loop() {
 
     print_t = millis();
   }
+
+  if (digitalRead(PB5) == LOW) {
+    clearDrvFault();
+  }
 }
 
 void serialReceiveUserCommand() {
@@ -183,6 +199,10 @@ void serialReceiveUserCommand() {
     if (inChar == '\n' || inChar == '\r') {
       if (received_chars.length() > 0) {
         target_voltage = received_chars.toFloat();
+        if (target_voltage > 10.0)
+          target_voltage = 10.0;
+        else if (target_voltage < -10.0)
+          target_voltage = -10.0;
 
         Serial.print("New target voltage: ");
         Serial.println(target_voltage);
