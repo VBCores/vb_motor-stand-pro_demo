@@ -38,11 +38,19 @@ void ISR_A(){
   }
 
   if (count <= -ipr){ 
+<<<<<<< HEAD
     revolutions -= 1;
     count = 0;
   }
   else if (count >= ipr){
     revolutions += 1;
+=======
+    revolutions += 1;
+    count = 0;
+  }
+  else if (count >= ipr){
+    revolutions -= 1;
+>>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
     count = 0;
   }
   
@@ -172,8 +180,10 @@ void loop() {
   Serial.print(as5047p.readAngleDegree());
   Serial.print(" | revolutions: ");
   Serial.println(revolutions);
+<<<<<<< HEAD
   delay(10); 
   
+=======
+  delay(100); 
+>>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
 }
-
-  

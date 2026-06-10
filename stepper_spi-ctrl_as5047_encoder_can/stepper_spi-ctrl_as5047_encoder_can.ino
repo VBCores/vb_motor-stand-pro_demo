@@ -145,11 +145,6 @@ void sendData(unsigned long address, unsigned long datagram) {
   i_datagram <<= 8;
   i_datagram |= SPI.transfer((datagram) & 0xff);
   digitalWrite(SPI1_NSS_PIN ,HIGH);
-
-  Serial.print("Received: ");
-  Serial.println(i_datagram, HEX);
-  Serial.print(" from register: ");
-  Serial.println(address,HEX);
 }
 
 void setup(){
@@ -203,7 +198,7 @@ void can_send_recv(){
       }
 }
 
-int target = 51200;
+int target = 200000;
 
 void loop(){
   sendData(0xAD,target);
@@ -217,14 +212,18 @@ void loop(){
     t = millis();
   }
 
-  Serial.print("Angle: ");
+  Serial.print("angle: ");
   Serial.print(as5047p.readAngleDegree());
+<<<<<<< HEAD
   Serial.print(" Counts: ");
   Serial.print(count);
   Serial.print(" Rotation: ");
+=======
+  Serial.print(" | revolutions: ");
+>>>>>>> 73e46cede4de9acec182d1e92e22107205bcf9f9
   Serial.println(revolutions);
 
-  target +=51200;
+  // target +=51200;
   delay(100);
 
   
