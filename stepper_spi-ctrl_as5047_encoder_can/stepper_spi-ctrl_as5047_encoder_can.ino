@@ -5,7 +5,7 @@ encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 #include <SPI.h>
 #include <VBCoreG4_arduino_system.h>
 #include <AS5047P.h>
-
+ 
 #define AS5047P_CHIP_SELECT_PORT PA_15_ALT1
 #define AS5047P_CUSTOM_SPI_BUS_SPEED 100000
 
@@ -203,13 +203,13 @@ void can_send_recv(){
       }
 }
 
-int target = 51200;
+int target = 200000;
 
 void loop(){
   sendData(0xAD,target);
   delay(1);
   if (Serial.available() > 0) {
-    target = Serial.readString().toInt();    
+    target = Serial.readStringUntil('\n').toInt();    
   }
 
   if (millis() - t >= 100){
@@ -221,10 +221,9 @@ void loop(){
   Serial.print(as5047p.readAngleDegree());
   Serial.print(" Counts: ");
   Serial.print(count);
-  Serial.print(" Rotation: ");
+  Serial.print(" Revolutions: ");
   Serial.println(revolutions);
 
-  target +=51200;
   delay(100);
 
   
