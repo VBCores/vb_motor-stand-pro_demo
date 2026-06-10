@@ -146,10 +146,10 @@ void sendData(unsigned long address, unsigned long datagram) {
   i_datagram |= SPI.transfer((datagram) & 0xff);
   digitalWrite(SPI1_NSS_PIN ,HIGH);
 
-  Serial.print("Received: ");
-  Serial.println(i_datagram, HEX);
-  Serial.print(" from register: ");
-  Serial.println(address,HEX);
+  // Serial.print("Received: ");
+  // Serial.println(i_datagram, HEX);
+  // Serial.print(" from register: ");
+  // Serial.println(address,HEX);
 }
 
 void setup(){
