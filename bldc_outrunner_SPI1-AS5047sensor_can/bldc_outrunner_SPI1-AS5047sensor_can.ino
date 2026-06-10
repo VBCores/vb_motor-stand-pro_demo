@@ -57,7 +57,7 @@ void setup() {
  
   sensor.init(&SPI_1);
   motor.linkSensor(&sensor);
-  driver.voltage_power_supply = 24;
+  driver.voltage_power_supply = 50;
   driver.init();
   motor.linkDriver(&driver);
   motor.init();
@@ -115,9 +115,15 @@ void setup() {
     Serial.println(F(" - You can also try to adjust the target voltage using serial terminal!"));
   }
 
-
+  motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
   motor.controller = MotionControlType::torque;
+  motor.torque_controller = TorqueControlType::voltage;
+
   motor.pole_pairs = pp;
+  motor.voltage_limit=36;
+  motor.current_limit = 2.7;
+  motor.velocity_limit = 564;
+
   motor.initFOC();
   _delay(1000);
 

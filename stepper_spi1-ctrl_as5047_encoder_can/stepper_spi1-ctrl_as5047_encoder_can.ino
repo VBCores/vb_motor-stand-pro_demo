@@ -1,13 +1,13 @@
-/*Мотор вращается в одну сторону
+/*Мотор вращается 2 сек в одну сторону, 2 сек в другую
 57HS100-4204A-E1000  I=4.2A Angular step 1.8° Phase number: 2
 encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 */ 
 #include <SPI.h>
 #include <VBCoreG4_arduino_system.h>
-#include <AS5047P.h>
+//#include <AS5047P.h>
 
-#define AS5047P_CHIP_SELECT_PORT PA_15_ALT1
-#define AS5047P_CUSTOM_SPI_BUS_SPEED 100000
+//#define AS5047P_CHIP_SELECT_PORT PA_15_ALT1
+//#define AS5047P_CUSTOM_SPI_BUS_SPEED 100000
 
 #define Enc_A PB6  
 #define Enc_B PC7
@@ -28,13 +28,15 @@ encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 // #define MISO          PA6 // Software Master In Slave Out (MISO)
 // #define SCK           PA5 // Software Slave Clock (SCK)
 
-#define SPI1_NSS_PIN PA4
+//#define SPI1_NSS_PIN PA4
+#define SPI3_NSS_PIN PA_15_ALT1
+
 
 byte data[5];
 
 //           MOSI  MISO  SCLK
 SPIClass SPI_3(PC12, PC11, PC10); 
-AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
+//AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 
 int ipr = 2000;
 int count = 0;
@@ -70,13 +72,13 @@ void ISR_A(){
 
 void motor_config(){
   //SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE3));
-  SPI.setBitOrder(MSBFIRST); 
-  SPI.setDataMode(SPI_MODE3); 
-  SPI.setClockDivider(SPI_CLOCK_DIV16);
+  SPI_3.setBitOrder(MSBFIRST); 
+  SPI_3.setDataMode(SPI_MODE3); 
+  SPI_3.setClockDivider(SPI_CLOCK_DIV16);
 
-  pinMode(SPI1_NSS_PIN, OUTPUT);
+  pinMode(SPI3_NSS_PIN, OUTPUT);
 
-  SPI.begin();
+  SPI_3.begin();
 
   pinMode(EN_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
@@ -87,7 +89,7 @@ void motor_config(){
   digitalWrite(SD_MODE, LOW);
   digitalWrite(SPI_MODE, HIGH);
   digitalWrite(EN_PIN, LOW);
-  digitalWrite(SPI1_NSS_PIN, HIGH);
+  digitalWrite(SPI3_NSS_PIN, HIGH);
 
   sendData(0x80,0x00000000);      //GCONF
 
@@ -132,19 +134,19 @@ void sendData(unsigned long address, unsigned long datagram) {
   delay(100);
   unsigned long i_datagram;
 
-  digitalWrite(SPI1_NSS_PIN, LOW);
+  digitalWrite(SPI3_NSS_PIN, LOW);
   delayMicroseconds(10);
 
-  SPI.transfer(address);
+  SPI_3.transfer(address);
 
-  i_datagram |= SPI.transfer((datagram >> 24) & 0xff);
+  i_datagram |= SPI_3.transfer((datagram >> 24) & 0xff);
   i_datagram <<= 8;
-  i_datagram |= SPI.transfer((datagram >> 16) & 0xff);
+  i_datagram |= SPI_3.transfer((datagram >> 16) & 0xff);
   i_datagram <<= 8;
-  i_datagram |= SPI.transfer((datagram >> 8) & 0xff);
+  i_datagram |= SPI_3.transfer((datagram >> 8) & 0xff);
   i_datagram <<= 8;
-  i_datagram |= SPI.transfer((datagram) & 0xff);
-  digitalWrite(SPI1_NSS_PIN ,HIGH);
+  i_datagram |= SPI_3.transfer((datagram) & 0xff);
+  digitalWrite(SPI3_NSS_PIN ,HIGH);
 
   Serial.print("Received: ");
   Serial.println(i_datagram, HEX);
@@ -154,7 +156,7 @@ void sendData(unsigned long address, unsigned long datagram) {
 
 void setup(){
   Serial.begin(115200);
-  pinMode(PD2, OUTPUT);
+  pinMode(LED2, OUTPUT);
 
   pinMode(Enc_B, INPUT);
   pinMode(Enc_A, INPUT);
@@ -164,11 +166,11 @@ void setup(){
   motor_config();
 
   // /*--- Инициализация датчика ---*/ 
-  while (!as5047p.initSPI(& SPI_3)) {
-    Serial.println(F("Can't connect to the AS5047P sensor! Please check the connection..."));
-    delay(3000);
-  }
-  start_angle =as5047p.readAngleDegree(); 
+  // while (!as5047p.initSPI(& SPI_3)) {
+  //   Serial.println(F("Can't connect to the AS5047P sensor! Please check the connection..."));
+  //   delay(3000);
+  // }
+  // start_angle =as5047p.readAngleDegree(); 
   
 }
 
@@ -177,7 +179,7 @@ void can_send_recv(){
   if (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan1) != 0){
       
       if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &TxHeader, can_data_send) != HAL_OK){ Error_Handler(); } 
-      else{digitalToggle(PD2);} //помигаем светодиодом, если все ок
+      else{digitalWrite(LED2, !digitalRead(LED2));} //помигаем светодиодом, если все ок
     }
 
     // /*-------Получение сообщений из can-------*/ 
@@ -206,7 +208,7 @@ void can_send_recv(){
 int target = 51200;
 
 void loop(){
-  sendData(0xAD,target);
+  //sendData(0xAD,target);
   delay(1);
   if (Serial.available() > 0) {
     target = Serial.readString().toInt();    
@@ -217,8 +219,8 @@ void loop(){
     t = millis();
   }
 
-  Serial.print("Angle: ");
-  Serial.print(as5047p.readAngleDegree());
+  // Serial.print("Angle: ");
+  // Serial.print(as5047p.readAngleDegree());
   Serial.print(" Counts: ");
   Serial.print(count);
   Serial.print(" Rotation: ");
