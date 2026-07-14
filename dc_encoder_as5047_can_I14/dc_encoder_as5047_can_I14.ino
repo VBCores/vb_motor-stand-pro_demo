@@ -1,8 +1,8 @@
 /*DC motor 24V
 CHP-36GP-555-ABHL
-Gear ratio 1:51
+Gear ratio 1:14
 Magnets = 34
-ipr = gear_ratio * Magnets = 1734*/
+cpr = gear_ratio * Magnets = 476*/
 #include <VBCoreG4_arduino_system.h>
 #include <AS5047P.h>
 
@@ -27,9 +27,9 @@ int pwm = 500;
 int count = 0;
 float start_angle = 0;
 int revolutions = 0;
-int gear_ratio = 51;
+int gear_ratio = 14;
 int magnets = 34;
-int ipr = gear_ratio * magnets; //1734
+int cpr = gear_ratio * magnets; //1734
 
 void ISR_A(){
   
@@ -40,11 +40,11 @@ void ISR_A(){
     count += 1;
   }
 
-  if (count <= -ipr){ 
+  if (count <= -cpr){ 
     revolutions -= 1;
     count = 0;
   }
-  else if (count >= ipr){
+  else if (count >= cpr){
     revolutions += 1;
     count = 0;
   }
@@ -149,7 +149,7 @@ void loop() {
     analogWrite(IN2, 4096);
     analogWrite(IN1, 4096-abs(pwm)); 
   }
-  /* ---------Подсчет ipr---------- */
+  /* ---------Подсчет cpr---------- */
   // if (pwm!=0 && abs(start_angle - as5047p.readAngleDegree())<0.05){
   //   ++revolutions;
   //   Serial.print(as5047p.readAngleDegree());
