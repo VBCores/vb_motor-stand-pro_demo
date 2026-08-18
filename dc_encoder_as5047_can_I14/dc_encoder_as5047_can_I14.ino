@@ -1,8 +1,11 @@
-/*DC motor 24V
+/*
+DC motor 
+Max voltage 24V
 CHP-36GP-555-ABHL
 Gear ratio 1:14
 Magnets = 34
-cpr = gear_ratio * Magnets = 476*/
+cpr = gear_ratio * Magnets = 476
+*/
 #include <VBCoreG4_arduino_system.h>
 #include <AS5047P.h>
 
