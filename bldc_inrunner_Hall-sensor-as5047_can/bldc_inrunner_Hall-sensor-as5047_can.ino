@@ -1,5 +1,37 @@
 /* BLDC - 57BL95S15-230 24V, 150W, I = 8.7A, 0.5N*m Pole pairs = 2 */
 
+
+/*
+  Ошибка совместимости SimpleFOC со STM32duino 3.0.0
+
+  Если при компиляции вы видите
+  Compilation error:
+  cannot convert 'TIM_HandleTypeDef*' to 'TIM_TypeDef*'
+
+  Причина:
+  В STM32duino 3.0.0 изменилась сигнатура функции enableTimerClock().
+  SimpleFOC использует старый тип аргумента TIM_HandleTypeDef*,
+  тогда как новая версия ядра ожидает TIM_TypeDef*.
+
+  Исправление:
+  Открыть файл библиотеки Simple_FOC(Arduino-FOC):
+  Arduino/libraries/Simple_FOC/src/drivers/hardware_specific/stm32/stm32_mcu.cpp
+  или Arduino/libraries/Arduino-FOC/src/drivers/hardware_specific/stm32/stm32_mcu.cpp
+
+  Найти строку (она 126):
+  enableTimerClock(handle);
+
+  Заменить на:
+  #if defined(STM32_CORE_VERSION_MAJOR) && (STM32_CORE_VERSION_MAJOR >= 3)
+    enableTimerClock(handle->Instance);
+  #else
+    enableTimerClock(handle);
+  #endif
+
+  Исправление предназначено для совместимости с STM32duino 2.12.0 и 3.0.0.
+  После изменения необходимо повторно скомпилировать прошивку.
+*/
+
 #include <VBCoreG4_arduino_system.h>
 #include <SimpleFOC.h>
 #include <AS5047P.h>
