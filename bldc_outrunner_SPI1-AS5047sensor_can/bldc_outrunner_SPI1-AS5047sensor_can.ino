@@ -1,10 +1,15 @@
-/*GM 5208-12, датчик AS5047 к SPI1 */
+/*GM6010-11, датчик AS5047 к SPI1 */
+/*Для управления двигателем используется SimpleFOC версии 2.3.4 и stm32 mcu based boards версии 2.12.0*/
+
 #include <VBCoreG4_arduino_system.h> 
 #include <SimpleFOC.h>
 
+#define NSLEEP PB3
+#define NFAULT PB5
+#define LED1 PD2
 
 BLDCMotor motor = BLDCMotor(1);
-BLDCDriver3PWM driver = BLDCDriver3PWM(PA8, PA9, PA10);
+BLDCDriver3PWM driver = BLDCDriver3PWM(PA8, PA9, PA10, PB13, PB14, PB15);
 
 SPIClass SPI_1(PA7, PA6, PA5); //NSS PA4
 MagneticSensorSPI sensor = MagneticSensorSPI(PA4, 14, 0x3FFF);
@@ -15,6 +20,8 @@ FDCAN_HandleTypeDef*  hfdcan1; // создаем переменную типа F
 CanFD* canfd;
 FDCAN_TxHeaderTypeDef TxHeader; //FDCAN_TxHeaderTypeDef TxHeader;
 
+// Таймер, по которому будет вызываться loopFOC()
+HardwareTimer *timer = new HardwareTimer(TIM7);
 
 void can_config(int ID){
   SystemClock_Config();  // Настройка тактирования
@@ -32,23 +39,19 @@ void can_config(int ID){
   delay(10);
 }
 
+void FOC_func() {
+  motor.loopFOC();
+}
+
 void setup() {
 
   Serial.begin(115200);
-  pinMode(PD2, OUTPUT);
+  pinMode(LED1, OUTPUT);
 
-  pinMode(PB5, INPUT);
-  pinMode(PB3, OUTPUT);
-  
-
-  pinMode(PB15, OUTPUT);
-  pinMode(PB14, OUTPUT);
-  pinMode(PB13, OUTPUT);
-  digitalWrite(PB15, HIGH);
-  digitalWrite(PB14, HIGH);
-  digitalWrite(PB13, HIGH);
-  
-  digitalWrite(PB3, HIGH);
+  pinMode(NFAULT, INPUT_PULLUP);
+  pinMode(NSLEEP, OUTPUT);
+    
+  digitalWrite(NSLEEP, HIGH);
 
   /* -----Настройка FD CAN  */
   can_config(0x03);
@@ -58,9 +61,10 @@ void setup() {
   sensor.init(&SPI_1);
   motor.linkSensor(&sensor);
   driver.voltage_power_supply = 50;
+  driver.pwm_frequency = 25000;
   driver.init();
   motor.linkDriver(&driver);
-  motor.init();
+  
 
   Serial.println("Pole pairs (PP) estimator");
   Serial.println("-\n");
@@ -68,8 +72,12 @@ void setup() {
   float pp_search_voltage = 4; // maximum power_supply_voltage/2
   float pp_search_angle = 6*_PI; // search electrical angle to turn
 
+  // Настройка мотора для поиска количества пар полюсов
   motor.controller = MotionControlType::angle_openloop;
   motor.voltage_limit=pp_search_voltage;
+  motor.init();
+
+  // Поиск количества пар полюсов
   motor.move(0);
   _delay(1000);
   sensor.update();
@@ -102,7 +110,6 @@ void setup() {
   Serial.println((pp_search_angle)/(angle_end-angle_begin));
   Serial.println();
 
-
   if(pp <= 0 ){
     Serial.println(F("PP number cannot be negative"));
     Serial.println(F(" - Try changing the search_voltage value or motor/sensor configuration."));
@@ -114,7 +121,8 @@ void setup() {
     Serial.println(F(" - If it is not moving try to relaunch the program!"));
     Serial.println(F(" - You can also try to adjust the target voltage using serial terminal!"));
   }
-
+  
+  // Настройка двигателя для штатной работы
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
   motor.controller = MotionControlType::torque;
   motor.torque_controller = TorqueControlType::voltage;
@@ -128,6 +136,14 @@ void setup() {
   _delay(1000);
 
   t = 0;
+
+  //motor.loopFOC() будет вызываться с частотой 1.5 кГц
+  timer->pause();
+  timer->setOverflow(1500, HERTZ_FORMAT);
+  timer->attachInterrupt(FOC_func);
+  timer->refresh();
+  timer->resume();
+
   Serial.println(F("\n Motor ready."));
   Serial.println(F("Set the target voltage using serial terminal:"));
 }
@@ -139,10 +155,10 @@ void can_send_recv(){
   if (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan1) != 0){
       
       if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &TxHeader, data) != HAL_OK){ Error_Handler(); } 
-      else{digitalToggle(PD2);} //помигаем светодиодом, если все ок
+      else{digitalToggle(LED1);} //помигаем светодиодом, если все ок
     }
 
-    // /*-------Получение сообщений из can-------*/ 
+    /*-------Получение сообщений из can-------*/ 
 
     while(HAL_FDCAN_GetRxFifoFillLevel(hfdcan1, FDCAN_RX_FIFO0) > 0 )
       {
@@ -170,7 +186,6 @@ void loop() {
     can_send_recv();
     t = millis();
   }
-  motor.loopFOC();
   motor.move(target_voltage);
   serialReceiveUserCommand();
   delay(1);
@@ -178,8 +193,6 @@ void loop() {
 
 
 void serialReceiveUserCommand() {
-
- 
   static String received_chars;
 
   while (Serial.available()) {
@@ -187,7 +200,6 @@ void serialReceiveUserCommand() {
     char inChar = (char)Serial.read();
     received_chars += inChar;
     if (inChar == '\n') {
-
       target_voltage = received_chars.toFloat();
       Serial.print("Target voltage: ");
       Serial.println(target_voltage);

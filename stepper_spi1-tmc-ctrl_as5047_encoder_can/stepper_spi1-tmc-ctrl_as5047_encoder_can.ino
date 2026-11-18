@@ -1,28 +1,32 @@
-/*
-Мотор вращается в одну сторону
-57HS100-4204A-E1000  I=4.2A Angular step 1.8° Phase number: 2
-encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 
-  Важно! Драйвер управляет мотором по SPI_1
-  TMC5160 - SPI1:
+/*
+  57HSE82, step 1.8 degrees
+  TMC5160 + STM32G474
+
+  Управление:
+  - После запуска постоянное вращение в отрицательную сторону
+  - Число через Serial: движение к абсолютной позиции
+  - После достижения позиции: остановка и ожидание
+  - Новая позиция: новое движение
+  - Команда R: постоянное вращение
+
+  TMC5160 SPI1:
     NSS  PA4
     SCK  PA5
     MOSI PA7
     MISO PA6
 
-  Датчик AS5047P подключен к SPI3
-  AS5047P - SPI3:
+  AS5047P SPI3:
     NSS  PA15
     SCK  PC10
     MOSI PC12
     MISO PC11
-
-  Библиотека для работы с датчиком AS5047P https://github.com/VBCores/AS5047P 
 */
 
 #include <SPI.h>
 #include <VBCoreG4_arduino_system.h>
 #include <AS5047P.h>
+
 
 #define SPI1_SCK  PA5
 #define SPI1_MOSI PA7
@@ -47,17 +51,27 @@ encoder-wires: PB6:EA+  PC7:EB+  PA0:EA- (not used)  NC:EB- (not used)
 
 #define SPI1_NSS_PIN PA4
 
-// Настройки SPI1 для TMC5160.
-// 4 МГц частота SPI1, соответствует скорости передачи одной команды на TMC5160 16 мкс
+#define LED1 PD2
+
+// Регистры TMC5160
+#define REG_RAMPMODE  0x20
+#define REG_XACTUAL   0x21
+#define REG_XTARGET   0x2D
+#define REG_RAMP_STAT 0x35
+
+// Режимы TMC5160
+#define RAMP_POSITION 0 //Движение к заданной позиции XTARGET
+#define RAMP_VEL_NEG  2 //Постоянное вращение в отрицательном направлении
+
+// SPI1 для TMC5160
 static constexpr uint32_t MOTOR_SPI_FREQ = 4000000;
 SPISettings motorSPISettings(MOTOR_SPI_FREQ, MSBFIRST, SPI_MODE3);
 
-// SPI3 для датчика AS5047P
+// SPI3 для AS5047P
 SPIClass SPI_3(SPI3_MOSI, SPI3_MISO, SPI3_SCK);
 
-// Датчик AS5047P
 #define AS5047P_CHIP_SELECT_PORT PA_15_ALT1
-#define AS5047P_CUSTOM_SPI_BUS_SPEED 100000
+#define AS5047P_CUSTOM_SPI_BUS_SPEED 1000000
 
 AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 
@@ -76,6 +90,20 @@ FDCAN_TxHeaderTypeDef TxHeader;
 
 
 // ====================================
+// Состояния двигателя
+// ====================================
+
+enum MotorState {
+  MOTOR_ROTATING,
+  MOTOR_POSITIONING,
+  MOTOR_WAITING
+};
+
+MotorState motorState = MOTOR_ROTATING;
+int32_t targetPosition = 0;
+unsigned long positionCheckTime = 0;
+
+// ====================================
 // Прерывание энкодера
 // ====================================
 
@@ -89,31 +117,58 @@ void ISR_A() {
 
 
 // ====================================
-// Передача данных в TMC5160 по SPI1
+// Запись регистра TMC5160
 // ====================================
 
 void sendData(uint8_t address, uint32_t datagram) {
-
-  // Настройка SPI перед транзакцией
   SPI.beginTransaction(motorSPISettings);
 
-  // Выбор TMC5160
   digitalWrite(SPI1_NSS_PIN, LOW);
   delayMicroseconds(10);
 
-  // Адрес регистра
   SPI.transfer(address);
 
-  // 32 бита данных, старший байт первым
   SPI.transfer((datagram >> 24) & 0xFF);
   SPI.transfer((datagram >> 16) & 0xFF);
   SPI.transfer((datagram >> 8) & 0xFF);
   SPI.transfer(datagram & 0xFF);
 
-  // Завершение передачи
   digitalWrite(SPI1_NSS_PIN, HIGH);
 
   SPI.endTransaction();
+}
+
+
+// ====================================
+// Чтение регистра TMC5160
+// ====================================
+
+uint32_t readData(uint8_t address) {
+  uint32_t result = 0;
+
+  // Ответ TMC5160 приходит на следующей SPI-транзакции
+  for (int i = 0; i < 2; i++) {
+    SPI.beginTransaction(motorSPISettings);
+
+    digitalWrite(SPI1_NSS_PIN, LOW);
+    delayMicroseconds(10);
+
+    SPI.transfer(address & 0x7F);
+
+    uint32_t value = 0;
+
+    for (int j = 0; j < 4; j++) {
+      value = (value << 8) | SPI.transfer(0x00);
+    }
+
+    digitalWrite(SPI1_NSS_PIN, HIGH);
+    SPI.endTransaction();
+
+    result = value;
+    delayMicroseconds(10);
+  }
+
+  return result;
 }
 
 
@@ -122,12 +177,9 @@ void sendData(uint8_t address, uint32_t datagram) {
 // ====================================
 
 void motor_config() {
-
-  // CS сначала переводим в неактивное состояние
   pinMode(SPI1_NSS_PIN, OUTPUT);
   digitalWrite(SPI1_NSS_PIN, HIGH);
 
-  // TMC5160 подключен к SPI1
   SPI.setMOSI(SPI1_MOSI);
   SPI.setMISO(SPI1_MISO);
   SPI.setSCLK(SPI1_SCK);
@@ -144,7 +196,7 @@ void motor_config() {
   digitalWrite(SPI_MODE, HIGH);
   digitalWrite(EN_PIN, LOW);
 
-  // Конфигурация TMC5160
+  // TMC5160
   sendData(0x80, 0x00000000); // GCONF
 
   sendData(0xEC, 0x000101D5); // CHOPCONF
@@ -153,17 +205,107 @@ void motor_config() {
 
   sendData(0xF0, 0x00000000); // PWMCONF
 
+  // Параметры движения
   sendData(0xA4, 0x000003E8); // A1 = 1000
   sendData(0xA5, 0x000186A0); // V1 = 100000
   sendData(0xA6, 0x0000C350); // AMAX = 50000
   sendData(0xA7, 0x000186A0); // VMAX = 100000
+  sendData(0xA8, 0x0000C350); // DMAX = 50000
   sendData(0xAA, 0x00000578); // D1 = 1400
   sendData(0xAB, 0x0000000A); // VSTOP = 10
 
-  sendData(0xA0, 0x00000000); // RAMPMODE = 0
-
+  // Начальные координаты
+  sendData(0xA0, RAMP_POSITION);
   sendData(0xA1, 0x00000000); // XACTUAL = 0
   sendData(0xAD, 0x00000000); // XTARGET = 0
+}
+
+
+// ====================================
+// Постоянное вращение
+// ====================================
+
+void startContinuousRotation() {
+  // Вращение к отрицательным координатам
+  sendData(0xA0, RAMP_VEL_NEG);
+  motorState = MOTOR_ROTATING;
+  Serial.println("Continuous rotation started.");
+}
+
+
+// ====================================
+// Движение к заданной позиции
+// ====================================
+
+void setTargetPosition(int32_t newTarget) {
+  targetPosition = newTarget;
+
+  sendData(0xAD, (uint32_t)targetPosition);
+  sendData(0xA0, RAMP_POSITION);
+
+  motorState = MOTOR_POSITIONING;
+
+  positionCheckTime = millis();
+
+  Serial.print("Moving to position: ");
+  Serial.println(targetPosition);
+}
+
+
+// ====================================
+// Проверка достижения позиции
+// ====================================
+
+void checkPositionReached() {
+  if (motorState != MOTOR_POSITIONING) return;
+
+  // Проверка каждые 50 мс
+  if (millis() - positionCheckTime < 50) return;
+  positionCheckTime = millis();
+
+  // RAMP_STAT
+  uint32_t rampStat = readData(REG_RAMP_STAT);
+
+  // Bit 9: position_reached
+  // Bit 10: vzero
+  bool positionReached = (rampStat & (1UL << 9)) != 0;
+  bool velocityZero = (rampStat & (1UL << 10)) != 0;
+
+  // Дополнительно проверяем XACTUAL
+  int32_t actualPosition = (int32_t)readData(REG_XACTUAL);
+
+  if (positionReached && velocityZero && actualPosition == targetPosition) {
+    motorState = MOTOR_WAITING;
+
+    // RAMPMODE остаётся 0.
+    // TMC5160 удерживает достигнутую позицию.
+
+    Serial.print("Position reached: ");
+    Serial.println(actualPosition);
+
+    Serial.println("Motor stopped. Waiting for command.");
+  }
+}
+
+
+// ====================================
+// Неблокирующий приём Serial
+// ====================================
+
+void serialReceiveUserCommand() {
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+
+    // Команда постоянного вращения
+    if (command.equalsIgnoreCase("R")) {
+      startContinuousRotation();
+    }
+    // Команда целевой позиции
+    else if (command.length() > 0) {
+      setTargetPosition(command.toInt());
+    }
+  }
 }
 
 
@@ -172,7 +314,6 @@ void motor_config() {
 // ====================================
 
 void can_config(int ID) {
-
   SystemClock_Config();
 
   canfd = new CanFD();
@@ -197,42 +338,81 @@ void can_config(int ID) {
 // ====================================
 
 void can_send_recv() {
-
-  // Отправка CAN FD
   if (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan1) != 0) {
-
     if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &TxHeader, can_data_send) != HAL_OK) {
       Error_Handler();
-    }
-    else {
-      digitalToggle(PD2);
+    } else {
+      digitalToggle(LED1);
     }
   }
 
-  // Получение CAN FD
   while (HAL_FDCAN_GetRxFifoFillLevel(hfdcan1, FDCAN_RX_FIFO0) > 0) {
-
     FDCAN_RxHeaderTypeDef Header;
     uint8_t RxData[64] = {0};
 
     if (HAL_FDCAN_GetRxMessage(hfdcan1, FDCAN_RX_FIFO0, &Header, RxData) != HAL_OK) {
       Error_Handler();
-    }
-    else {
+    } else {
       Serial.print("ID ");
       Serial.print(Header.Identifier);
-
       Serial.print(" data: ");
-
       Serial.print(RxData[0]);
-      Serial.print("  ");
+      Serial.print(" ");
       Serial.print(RxData[1]);
-      Serial.print("  ");
+      Serial.print(" ");
       Serial.print(RxData[2]);
-      Serial.print("  ");
+      Serial.print(" ");
       Serial.print(RxData[3]);
       Serial.println();
     }
+  }
+}
+
+
+// ====================================
+// Диагностика
+// ====================================
+
+void printDebugInfo() {
+  static unsigned long print_t = 0;
+
+  if (millis() - print_t < 200) return;
+  print_t = millis();
+
+  noInterrupts();
+  int32_t ticks = encoderTicks;
+  interrupts();
+
+  float revolutions = (float)ticks / IPR;
+
+  int32_t actualPosition = (int32_t)readData(REG_XACTUAL);
+
+  Serial.print("Angle: ");
+  Serial.print(as5047p.readAngleDegree());
+
+  Serial.print(" | Ticks: ");
+  Serial.print(ticks);
+
+  Serial.print(" | Revolutions: ");
+  Serial.print(revolutions, 4);
+
+  Serial.print(" | XACTUAL: ");
+  Serial.print(actualPosition);
+
+  Serial.print(" | State: ");
+
+  switch (motorState) {
+    case MOTOR_ROTATING:
+      Serial.println("ROTATING");
+      break;
+
+    case MOTOR_POSITIONING:
+      Serial.println("POSITIONING");
+      break;
+
+    case MOTOR_WAITING:
+      Serial.println("WAITING");
+      break;
   }
 }
 
@@ -242,10 +422,10 @@ void can_send_recv() {
 // ====================================
 
 void setup() {
-
   Serial.begin(115200);
+  Serial.setTimeout(50);
 
-  pinMode(PD2, OUTPUT);
+  pinMode(LED1, OUTPUT);
 
   // Энкодер
   pinMode(Enc_B, INPUT);
@@ -259,11 +439,23 @@ void setup() {
   // TMC5160
   motor_config();
 
-  // AS5047P подключен к SPI3
+  // AS5047P на SPI3
   while (!as5047p.initSPI(&SPI_3)) {
     Serial.println(F("Can't connect to the AS5047P sensor!"));
     delay(3000);
   }
+
+  Serial.println("AS5047P ready.");
+
+  // Автоматически начинаем вращение
+  startContinuousRotation();
+
+  Serial.println();
+  Serial.println("Commands:");
+  Serial.println("  R       - continuous negative rotation");
+  Serial.println("  -200000 - move to absolute position -200000");
+  Serial.println("  50000   - move to absolute position 50000");
+  Serial.println("  0       - move to position zero");
 }
 
 
@@ -271,20 +463,10 @@ void setup() {
 // Loop
 // ====================================
 
-int32_t target = 200000;
-int32_t lastTarget = 0;
-
 void loop() {
-  // Команда через Serial
-  if (Serial.available() > 0) {
-    target = Serial.readStringUntil('\n').toInt();
-  }
-
-  // Обновление целевой позиции TMC5160
-  if (target != lastTarget) {
-    sendData(0xAD, (uint32_t)target);
-    lastTarget = target;
-  }
+  serialReceiveUserCommand();
+  // Проверка достижения заданной позиции
+  checkPositionReached();
 
   // CAN FD
   if (millis() - t >= 100) {
@@ -292,22 +474,6 @@ void loop() {
     t = millis();
   }
 
-  // Считывание энкодера
-  noInterrupts();
-  int32_t ticks = encoderTicks;
-  interrupts();
-
-  float revolutions = (float)ticks / IPR;
-
-  // Диагностика
-  Serial.print("Angle: ");
-  Serial.print(as5047p.readAngleDegree());
-
-  Serial.print(" Ticks: ");
-  Serial.print(ticks);
-
-  Serial.print(" Revolutions: ");
-  Serial.println(revolutions, 4);
-
-  delay(100);
+  // Отладочная информация
+  printDebugInfo();
 }

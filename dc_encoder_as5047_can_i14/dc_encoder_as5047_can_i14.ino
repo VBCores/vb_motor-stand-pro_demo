@@ -19,20 +19,20 @@ cpr = gear_ratio * Magnets = 476
 #define IN2 PA9
 #define SLEEPn PB3
 #define VrefPin PA4
-#define USR_BTN PC13
+#define LED1 PD2
 
 
 //            MOSI  MISO  SCLK
 SPIClass SPI_3(PC12, PC11, PC10); 
 AS5047P as5047p(AS5047P_CHIP_SELECT_PORT, AS5047P_CUSTOM_SPI_BUS_SPEED);
 
-int pwm = 500;
+int pwm = -500;
 int count = 0;
 float start_angle = 0;
 int revolutions = 0;
 int gear_ratio = 14;
 int magnets = 34;
-int cpr = gear_ratio * magnets; //1734
+int cpr = gear_ratio * magnets; 
 
 void ISR_A(){
   
@@ -51,7 +51,6 @@ void ISR_A(){
     revolutions += 1;
     count = 0;
   }
-  
 
 }
 
@@ -79,17 +78,16 @@ void can_config(int ID){
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PD2, OUTPUT);
+  pinMode(LED1, OUTPUT);
 
   pinMode(Enc_B, INPUT);
   pinMode(Enc_A, INPUT);
   attachInterrupt(digitalPinToInterrupt(Enc_A), ISR_A, CHANGE);
 
-  pinMode(PB3, OUTPUT);
+  pinMode(SLEEPn, OUTPUT);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(VrefPin, OUTPUT);
-  pinMode(USR_BTN, INPUT_PULLUP);
  
   digitalWrite(SLEEPn, HIGH);
   analogWriteResolution(12);
@@ -114,7 +112,7 @@ void can_send_recv(){
   if (HAL_FDCAN_GetTxFifoFreeLevel(hfdcan1) != 0){
       
       if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &TxHeader, data) != HAL_OK){ Error_Handler(); } 
-      else{digitalToggle(PD2);} //помигаем светодиодом, если все ок
+      else{digitalToggle(LED1);} //помигаем светодиодом, если все ок
     }
 
     // /*-------Получение сообщений из can-------*/ 
